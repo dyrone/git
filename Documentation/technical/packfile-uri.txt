@@ -35,13 +35,16 @@ include some sort of non-trivial implementation in the Minimum Viable Product,
 at least so that we can test the client.
 
 This is the implementation: a feature, marked experimental, that allows the
-server to be configured by one or more `uploadpack.blobPackfileUri=<sha1>
-<uri>` entries. Whenever the list of objects to be sent is assembled, all such
-blobs are excluded, replaced with URIs. As noted in "Future work" below, the
-server can evolve in the future to support excluding other objects (or other
-implementations of servers could be made that support excluding other objects)
-without needing a protocol change, so clients should not expect that packfiles
-downloaded in this way only contain single blobs.
+server to be configured by one or more entries with the format:
+
+    uploadpack.excludeobject=<object-hash> <recursively> <pack-hash> <uri>
+
+Value <object-hash> is the key of entry, and the object type can be a blob
+or commit. Value <recursively> works for commit object, if <recursively>
+is configured as '1', then the commit and all the referenced objects by
+the commit will be recursively excluded. Otherwise, only the commit itself
+will be excluded. Whenever the list of objects to be sent is assembled, all
+such objects are excluded, replaced with URIs.
 
 Client design
 -------------
@@ -65,9 +68,6 @@ The protocol design allows some evolution of the server and client without any
 need for protocol changes, so only a small-scoped design is included here to
 form the MVP. For example, the following can be done:
 
- * On the server, more sophisticated means of excluding objects (e.g. by
-   specifying a commit to represent that commit and all objects that it
-   references).
  * On the client, resumption of clone. If a clone is interrupted, information
    could be recorded in the repository's config and a "clone-resume" command
    can resume the clone in progress. (Resumption of subsequent fetches is more
