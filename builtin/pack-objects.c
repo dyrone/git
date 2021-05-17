@@ -99,6 +99,8 @@ static struct bitmap *reuse_packfile_bitmap;
 static int use_bitmap_index_default = 1;
 static int use_bitmap_index = -1;
 static int allow_pack_reuse = 1;
+static int in_commit_order;
+static int exclude_until_next_commit;
 static enum {
 	WRITE_BITMAP_FALSE = 0,
 	WRITE_BITMAP_QUIET,
@@ -132,6 +134,7 @@ struct configured_exclusion {
 	struct oidmap_entry e;
 	char *pack_hash_hex;
 	char *uri;
+        int recursively:1;
 };
 static struct oidmap configured_exclusions;
 
@@ -1291,11 +1294,17 @@ static int want_object_in_pack_one(struct packed_git *p,
  * and its offset in these variables.
  */
 static int want_object_in_pack(const struct object_id *oid,
+                               enum object_type type,
 			       int exclude,
 			       struct packed_git **found_pack,
 			       off_t *found_offset)
 {
-	int want;
+        if (exclude_until_next_commit && type != OBJ_COMMIT)
+                return 0;
+        if (type == OBJ_COMMIT)
+                exclude_until_next_commit = 0 ;
+
+        int want;
 	struct list_head *pos;
 	struct multi_pack_index *m;
 
@@ -1345,6 +1354,8 @@ static int want_object_in_pack(const struct object_id *oid,
 						&p) &&
 				    *p == ':') {
 					oidset_insert(&excluded_by_config, oid);
+					if(ex->recursively && type == OBJ_COMMIT)
+					    exclude_until_next_commit = 1;
 					return 0;
 				}
 			}
@@ -1394,7 +1405,7 @@ static int add_object_entry(const struct object_id *oid, enum object_type type,
 	if (have_duplicate_entry(oid, exclude))
 		return 0;
 
-	if (!want_object_in_pack(oid, exclude, &found_pack, &found_offset)) {
+	if (!want_object_in_pack(oid, type, exclude, &found_pack, &found_offset)) {
 		/* The pack is missing an object, so it will not have closure */
 		if (write_bitmap_index) {
 			if (write_bitmap_index != WRITE_BITMAP_QUIET)
@@ -1420,7 +1431,7 @@ static int add_object_entry_from_bitmap(const struct object_id *oid,
 	if (have_duplicate_entry(oid, 0))
 		return 0;
 
-	if (!want_object_in_pack(oid, 0, &pack, &offset))
+	if (!want_object_in_pack(oid, type, 0, &pack, &offset))
 		return 0;
 
 	create_object_entry(oid, type, name_hash, 0, 0, pack, offset);
@@ -2985,27 +2996,33 @@ static int git_pack_config(const char *k, const char *v, void *cb)
 			pack_idx_opts.flags &= ~WRITE_REV;
 		return 0;
 	}
-	if (!strcmp(k, "uploadpack.blobpackfileuri")) {
+	if (!strcmp(k, "uploadpack.excludeobject")) {
 		struct configured_exclusion *ex = xmalloc(sizeof(*ex));
-		const char *oid_end, *pack_end;
+		const char *oid_end, *pack_end, *recursively_end;
 		/*
 		 * Stores the pack hash. This is not a true object ID, but is
 		 * of the same form.
 		 */
 		struct object_id pack_hash;
-
-		if (parse_oid_hex(v, &ex->e.oid, &oid_end) ||
+                char recursively[2];
+                if (parse_oid_hex(v, &ex->e.oid, &oid_end) ||
 		    *oid_end != ' ' ||
-		    parse_oid_hex(oid_end + 1, &pack_hash, &pack_end) ||
+		    !strlcpy(recursively, oid_end + 1, sizeof(recursively)) ||
+		    parse_oid_hex(oid_end + 3, &pack_hash, &pack_end) ||
 		    *pack_end != ' ')
-			die(_("value of uploadpack.blobpackfileuri must be "
-			      "of the form '<object-hash> <pack-hash> <uri>' (got '%s')"), v);
+                        die(_("value of uploadpack.excludeobject must be "
+                              "of the form '<object-hash> <recursively> <pack-hash> <uri>' (got '%s')"), v);
 		if (oidmap_get(&configured_exclusions, &ex->e.oid))
-			die(_("object already configured in another "
-			      "uploadpack.blobpackfileuri (got '%s')"), v);
-		ex->pack_hash_hex = xcalloc(1, pack_end - oid_end);
-		memcpy(ex->pack_hash_hex, oid_end + 1, pack_end - oid_end - 1);
+                        die(_("object already configured in another "
+                              "uploadpack.excludeobject (got '%s')"), v);
+		recursively_end = oid_end + 2;
+		ex->pack_hash_hex = xcalloc(1, pack_end - recursively_end);
+		memcpy(ex->pack_hash_hex, recursively_end + 1, pack_end - recursively_end - 1);
 		ex->uri = xstrdup(pack_end + 1);
+		if (atoi(recursively)) {
+                    ex->recursively = 1;
+                    in_commit_order = 1;
+                }
 		oidmap_put(&configured_exclusions, ex);
 	}
 	return git_default_config(k, v, cb);
@@ -3023,7 +3040,7 @@ static int add_object_entry_from_pack(const struct object_id *oid,
 	struct rev_info *revs = _data;
 	struct object_info oi = OBJECT_INFO_INIT;
 	off_t ofs;
-	enum object_type type;
+	static enum object_type type;
 
 	display_progress(progress_state, ++nr_seen);
 
@@ -3031,7 +3048,7 @@ static int add_object_entry_from_pack(const struct object_id *oid,
 		return 0;
 
 	ofs = nth_packed_object_offset(p, pos);
-	if (!want_object_in_pack(oid, 0, &p, &ofs))
+	if (!want_object_in_pack(oid, type, 0, &p, &ofs))
 		return 0;
 
 	oi.typep = &type;
@@ -3245,7 +3262,7 @@ static void show_commit(struct commit *commit, void *data)
 
 static void show_object(struct object *obj, const char *name, void *data)
 {
-	add_preferred_base_object(name);
+        add_preferred_base_object(name);
 	add_object_entry(&obj->oid, obj->type, name, 0);
 	obj->flags |= OBJECT_ADDED;
 
@@ -3831,7 +3848,7 @@ int cmd_pack_objects(int argc, const char **argv, const char *prefix)
 			 N_("respect islands during delta compression")),
 		OPT_STRING_LIST(0, "uri-protocol", &uri_protocols,
 				N_("protocol"),
-				N_("exclude any configured uploadpack.blobpackfileuri with this protocol")),
+				N_("exclude any configured uploadpack.excludeobject with this protocol")),
 		OPT_END(),
 	};
 
@@ -3903,6 +3920,12 @@ int cmd_pack_objects(int argc, const char **argv, const char *prefix)
 		fetch_if_missing = 0;
 		strvec_push(&rp, "--exclude-promisor-objects");
 	}
+
+	if (in_commit_order){
+                use_internal_rev_list = 1;
+                strvec_push(&rp, "--in-commit-order");
+        }
+
 	if (unpack_unreachable || keep_unreachable || pack_loose_unreachable)
 		use_internal_rev_list = 1;
 

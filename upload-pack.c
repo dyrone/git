@@ -1744,12 +1744,11 @@ int upload_pack_advertise(struct repository *r,
 		     allow_sideband_all_value))
 			strbuf_addstr(value, " sideband-all");
 
-		if (!repo_config_get_string(the_repository,
-					    "uploadpack.blobpackfileuri",
-					    &str) &&
-		    str) {
-			strbuf_addstr(value, " packfile-uris");
-			free(str);
+                if (!repo_config_get_string(the_repository,
+                                            "uploadpack.excludeobject",
+                                            &str) && str) {
+                        strbuf_addstr(value, " packfile-uris");
+                        free(str);
 		}
 	}
 
