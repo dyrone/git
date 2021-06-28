@@ -1751,6 +1751,13 @@ int upload_pack_advertise(struct repository *r,
 			strbuf_addstr(value, " packfile-uris");
 			free(str);
 		}
+
+		if (!repo_config_get_string(the_repository,
+					    "uploadpack.excludeobject",
+					    &str) && str) {
+			strbuf_addstr(value, " packfile-uris");
+			free(str);
+		}
 	}
 
 	return 1;

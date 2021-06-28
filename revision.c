@@ -304,10 +304,11 @@ void mark_parents_uninteresting(struct commit *commit)
 	commit_stack_clear(&pending);
 }
 
-static void add_pending_object_with_path(struct rev_info *revs,
-					 struct object *obj,
-					 const char *name, unsigned mode,
-					 const char *path)
+static void add_pending_object_with_path_and_referred_commit(struct rev_info *revs,
+							     struct object *obj,
+							     const char *name, unsigned mode,
+							     const char *path,
+							     struct object *referred_commit)
 {
 	struct interpret_branch_name_options options = { 0 };
 	if (!obj)
@@ -326,20 +327,36 @@ static void add_pending_object_with_path(struct rev_info *revs,
 		strbuf_release(&buf);
 		return; /* do not add the commit itself */
 	}
-	add_object_array_with_path(obj, name, &revs->pending, mode, path);
+	add_object_array_with_path_and_referred_commit(obj, name, &revs->pending, mode, path, referred_commit);
+}
+
+static void add_pending_object_with_path(struct rev_info *revs,
+					 struct object *obj,
+					 const char *name, unsigned mode,
+					 const char *path) {
+	add_pending_object_with_path_and_referred_commit(revs, obj, name, mode, path, NULL);
 }
 
 static void add_pending_object_with_mode(struct rev_info *revs,
 					 struct object *obj,
-					 const char *name, unsigned mode)
+					 const char *name, unsigned mode,
+					 struct object *referred_commit)
 {
-	add_pending_object_with_path(revs, obj, name, mode, NULL);
+
+	add_pending_object_with_path_and_referred_commit(revs, obj, name, mode, NULL, referred_commit);
+}
+
+void add_pending_object_with_referred_commit(struct rev_info *revs,
+					     struct object *obj, const char *name,
+					     struct object *referred_commit)
+{
+	add_pending_object_with_mode(revs, obj, name, S_IFINVALID, referred_commit);
 }
 
 void add_pending_object(struct rev_info *revs,
 			struct object *obj, const char *name)
 {
-	add_pending_object_with_mode(revs, obj, name, S_IFINVALID);
+	add_pending_object_with_mode(revs, obj, name, S_IFINVALID, NULL);
 }
 
 void add_head_to_pending(struct rev_info *revs)
@@ -2764,7 +2781,6 @@ int setup_revisions(int argc, const char **argv, struct rev_info *revs, struct s
 			continue;
 		}
 
-
 		if (handle_revision_arg(arg, revs, flags, revarg_opt)) {
 			int j;
 			if (seen_dashdash || *arg == '^')
@@ -2817,7 +2833,7 @@ int setup_revisions(int argc, const char **argv, struct rev_info *revs, struct s
 		if (get_oid_with_context(revs->repo, revs->def, 0, &oid, &oc))
 			diagnose_missing_default(revs->def);
 		object = get_reference(revs, revs->def, &oid, 0);
-		add_pending_object_with_mode(revs, object, revs->def, oc.mode);
+		add_pending_object_with_mode(revs, object, revs->def, oc.mode, NULL);
 	}
 
 	/* Did the user ask for any diff output? Run the diff! */

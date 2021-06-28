@@ -424,6 +424,10 @@ void show_object_with_name(FILE *, struct object *, const char *);
 void add_pending_object(struct rev_info *revs,
 			struct object *obj, const char *name);
 
+void add_pending_object_with_referred_commit(struct rev_info *revs,
+					     struct object *obj, const char *name,
+					     struct object *referred_commit);
+
 void add_pending_oid(struct rev_info *revs,
 		     const char *name, const struct object_id *oid,
 		     unsigned int flags);

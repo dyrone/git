@@ -485,9 +485,9 @@ static void process_commit(struct commit *commit, void *data)
 	pcd->current_commit = commit->object.oid;
 }
 
-static void process_object(struct object *obj, const char *path, void *data)
+static void process_object(struct object *obj, const char *path, void *show_data, void *carry_data)
 {
-	struct process_commit_data *pcd = data;
+	struct process_commit_data *pcd = show_data;
 
 	if (oideq(&pcd->looking_for, &obj->oid) && !pcd->dst->len) {
 		reset_revision_walk();

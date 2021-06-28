@@ -43,6 +43,7 @@ struct object_array {
 	unsigned int alloc;
 	struct object_array_entry {
 		struct object *item;
+		struct object *referred_commit;
 		/*
 		 * name or NULL.  If non-NULL, the memory pointed to
 		 * is owned by this object *except* if it points at
@@ -157,6 +158,9 @@ void object_list_free(struct object_list **list);
 /* Object array handling .. */
 void add_object_array(struct object *obj, const char *name, struct object_array *array);
 void add_object_array_with_path(struct object *obj, const char *name, struct object_array *array, unsigned mode, const char *path);
+void add_object_array_with_path_and_referred_commit(struct object *obj, const char *name, struct object_array *array,
+						    unsigned mode, const char *path,
+						    struct object *referred_commit);
 
 /*
  * Returns NULL if the array is empty. Otherwise, returns the last object

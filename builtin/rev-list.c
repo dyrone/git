@@ -266,7 +266,7 @@ static int finish_object(struct object *obj, const char *name, void *cb_data)
 	return 0;
 }
 
-static void show_object(struct object *obj, const char *name, void *cb_data)
+static void show_object(struct object *obj, const char *name, void *cb_data, void *carry_data)
 {
 	struct rev_list_info *info = cb_data;
 	struct rev_info *revs = info->revs;

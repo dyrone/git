@@ -322,9 +322,10 @@ void object_list_free(struct object_list **list)
  */
 static char object_array_slopbuf[1];
 
-void add_object_array_with_path(struct object *obj, const char *name,
-				struct object_array *array,
-				unsigned mode, const char *path)
+void add_object_array_with_path_and_referred_commit(struct object *obj, const char *name,
+						    struct object_array *array,
+						    unsigned mode, const char *path,
+						    struct object *referred_commit)
 {
 	unsigned nr = array->nr;
 	unsigned alloc = array->alloc;
@@ -339,6 +340,7 @@ void add_object_array_with_path(struct object *obj, const char *name,
 	}
 	entry = &objects[nr];
 	entry->item = obj;
+	entry->referred_commit = referred_commit;
 	if (!name)
 		entry->name = NULL;
 	else if (!*name)
@@ -352,6 +354,13 @@ void add_object_array_with_path(struct object *obj, const char *name,
 	else
 		entry->path = NULL;
 	array->nr = ++nr;
+}
+
+void add_object_array_with_path(struct object *obj, const char *name,
+				struct object_array *array,
+				unsigned mode, const char *path)
+{
+	add_object_array_with_path_and_referred_commit(obj, name, array, mode, path, NULL);
 }
 
 void add_object_array(struct object *obj, const char *name, struct object_array *array)

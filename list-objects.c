@@ -24,7 +24,8 @@ struct traversal_context {
 static void process_blob(struct traversal_context *ctx,
 			 struct blob *blob,
 			 struct strbuf *path,
-			 const char *name)
+			 const char *name,
+			 struct object *referred_commit)
 {
 	struct object *obj = &blob->object;
 	size_t pathlen;
@@ -60,7 +61,7 @@ static void process_blob(struct traversal_context *ctx,
 	if (r & LOFR_MARK_SEEN)
 		obj->flags |= SEEN;
 	if (r & LOFR_DO_SHOW)
-		ctx->show_object(obj, path->buf, ctx->show_data);
+		ctx->show_object(obj, path->buf, ctx->show_data, referred_commit);
 	strbuf_setlen(path, pathlen);
 }
 
@@ -97,11 +98,13 @@ static void process_gitlink(struct traversal_context *ctx,
 static void process_tree(struct traversal_context *ctx,
 			 struct tree *tree,
 			 struct strbuf *base,
-			 const char *name);
+			 const char *name,
+			 struct object *referred_commit);
 
 static void process_tree_contents(struct traversal_context *ctx,
 				  struct tree *tree,
-				  struct strbuf *base)
+				  struct strbuf *base,
+				  struct object *referred_commit)
 {
 	struct tree_desc desc;
 	struct name_entry entry;
@@ -129,7 +132,7 @@ static void process_tree_contents(struct traversal_context *ctx,
 				    entry.path, oid_to_hex(&tree->object.oid));
 			}
 			t->object.flags |= NOT_USER_GIVEN;
-			process_tree(ctx, t, base, entry.path);
+			process_tree(ctx, t, base, entry.path, referred_commit);
 		}
 		else if (S_ISGITLINK(entry.mode))
 			process_gitlink(ctx, entry.oid.hash,
@@ -142,7 +145,7 @@ static void process_tree_contents(struct traversal_context *ctx,
 				    entry.path, oid_to_hex(&tree->object.oid));
 			}
 			b->object.flags |= NOT_USER_GIVEN;
-			process_blob(ctx, b, base, entry.path);
+			process_blob(ctx, b, base, entry.path, referred_commit);
 		}
 	}
 }
@@ -150,7 +153,8 @@ static void process_tree_contents(struct traversal_context *ctx,
 static void process_tree(struct traversal_context *ctx,
 			 struct tree *tree,
 			 struct strbuf *base,
-			 const char *name)
+			 const char *name,
+			 struct object *referred_commit)
 {
 	struct object *obj = &tree->object;
 	struct rev_info *revs = ctx->revs;
@@ -191,14 +195,14 @@ static void process_tree(struct traversal_context *ctx,
 	if (r & LOFR_MARK_SEEN)
 		obj->flags |= SEEN;
 	if (r & LOFR_DO_SHOW)
-		ctx->show_object(obj, base->buf, ctx->show_data);
+		ctx->show_object(obj, base->buf, ctx->show_data, referred_commit);
 	if (base->len)
 		strbuf_addch(base, '/');
 
 	if (r & LOFR_SKIP_TREE)
 		trace_printf("Skipping contents of tree %s...\n", base->buf);
 	else if (!failed_parse)
-		process_tree_contents(ctx, tree, base);
+		process_tree_contents(ctx, tree, base, referred_commit);
 
 	r = list_objects_filter__filter_object(ctx->revs->repo,
 					       LOFS_END_TREE, obj,
@@ -207,7 +211,7 @@ static void process_tree(struct traversal_context *ctx,
 	if (r & LOFR_MARK_SEEN)
 		obj->flags |= SEEN;
 	if (r & LOFR_DO_SHOW)
-		ctx->show_object(obj, base->buf, ctx->show_data);
+		ctx->show_object(obj, base->buf, ctx->show_data, referred_commit);
 
 	strbuf_setlen(base, baselen);
 	free_tree_buffer(tree);
@@ -314,9 +318,9 @@ void mark_edges_uninteresting(struct rev_info *revs,
 	}
 }
 
-static void add_pending_tree(struct rev_info *revs, struct tree *tree)
+static void add_pending_tree(struct rev_info *revs, struct object *referred_commit, struct tree *tree)
 {
-	add_pending_object(revs, &tree->object, "");
+	add_pending_object_with_referred_commit(revs, &tree->object, "", referred_commit);
 }
 
 static void traverse_trees_and_blobs(struct traversal_context *ctx,
@@ -329,23 +333,24 @@ static void traverse_trees_and_blobs(struct traversal_context *ctx,
 	for (i = 0; i < ctx->revs->pending.nr; i++) {
 		struct object_array_entry *pending = ctx->revs->pending.objects + i;
 		struct object *obj = pending->item;
+		struct object *referred_commit = pending->referred_commit;
 		const char *name = pending->name;
 		const char *path = pending->path;
 		if (obj->flags & (UNINTERESTING | SEEN))
 			continue;
 		if (obj->type == OBJ_TAG) {
 			obj->flags |= SEEN;
-			ctx->show_object(obj, name, ctx->show_data);
+			ctx->show_object(obj, name, ctx->show_data, referred_commit);
 			continue;
 		}
 		if (!path)
 			path = "";
 		if (obj->type == OBJ_TREE) {
-			process_tree(ctx, (struct tree *)obj, base, path);
+			process_tree(ctx, (struct tree *)obj, base, path, referred_commit);
 			continue;
 		}
 		if (obj->type == OBJ_BLOB) {
-			process_blob(ctx, (struct blob *)obj, base, path);
+			process_blob(ctx, (struct blob *)obj, base, path, referred_commit);
 			continue;
 		}
 		die("unknown pending object %s (%s)",
@@ -370,7 +375,7 @@ static void do_traverse(struct traversal_context *ctx)
 		else if (get_commit_tree(commit)) {
 			struct tree *tree = get_commit_tree(commit);
 			tree->object.flags |= NOT_USER_GIVEN;
-			add_pending_tree(ctx->revs, tree);
+			add_pending_tree(ctx->revs, &commit->object, tree);
 		} else if (commit->object.parsed) {
 			die(_("unable to load root tree for commit %s"),
 			      oid_to_hex(&commit->object.oid));

@@ -459,9 +459,9 @@ struct bitmap_show_data {
 	struct bitmap *base;
 };
 
-static void show_object(struct object *object, const char *name, void *data_)
+static void show_object(struct object *object, const char *name, void *show_data, void *carry_data)
 {
-	struct bitmap_show_data *data = data_;
+	struct bitmap_show_data *data = show_data;
 	int bitmap_pos;
 
 	bitmap_pos = bitmap_position(data->bitmap_git, &object->oid);
@@ -1268,9 +1268,9 @@ struct bitmap_test_data {
 };
 
 static void test_show_object(struct object *object, const char *name,
-			     void *data)
+			     void *show_data, void *carry_data)
 {
-	struct bitmap_test_data *tdata = data;
+	struct bitmap_test_data *tdata = show_data;
 	int bitmap_pos;
 
 	bitmap_pos = bitmap_position(tdata->bitmap_git, &object->oid);

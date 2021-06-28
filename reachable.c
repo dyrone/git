@@ -47,14 +47,14 @@ static int add_one_ref(const char *path, const struct object_id *oid,
  * The traversal will have already marked us as SEEN, so we
  * only need to handle any progress reporting here.
  */
-static void mark_object(struct object *obj, const char *name, void *data)
+static void mark_object(struct object *obj, const char *name, void *show_data, void *carry_data)
 {
-	update_progress(data);
+	update_progress(show_data);
 }
 
-static void mark_commit(struct commit *c, void *data)
+static void mark_commit(struct commit *c, void *show_data)
 {
-	mark_object(&c->object, NULL, data);
+	mark_object(&c->object, NULL, show_data,  NULL);
 }
 
 struct recent_data {
