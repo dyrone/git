@@ -2612,7 +2612,7 @@ static void print_stat_summary_inserts_deletes(struct diff_options *options,
 	}
 
 	strbuf_addf(&sb,
-		    (files == 1) ? " %d file changed" : " %d files changed",
+		    (files == 1) ? _(" %d file changed") : _(" %d files changed"),
 		    files);
 
 	/*
@@ -2625,13 +2625,13 @@ static void print_stat_summary_inserts_deletes(struct diff_options *options,
 	 */
 	if (insertions || deletions == 0) {
 		strbuf_addf(&sb,
-			    (insertions == 1) ? ", %d insertion(+)" : ", %d insertions(+)",
+			    (insertions == 1) ? _(", %d insertion(+)") : _(", %d insertions(+)"),
 			    insertions);
 	}
 
 	if (deletions || insertions == 0) {
 		strbuf_addf(&sb,
-			    (deletions == 1) ? ", %d deletion(-)" : ", %d deletions(-)",
+			    (deletions == 1) ? _(", %d deletion(-)") : _(", %d deletions(-)"),
 			    deletions);
 	}
 	strbuf_addch(&sb, '\n');
