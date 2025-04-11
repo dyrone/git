@@ -19877,6 +19877,27 @@ msgstr ""
 
 #: diff.c
 #, c-format
+msgid " %d file changed"
+msgid_plural " %d files changed"
+msgstr[0] " %d 文件更改"
+msgstr[1] " %d 文件更改"
+
+#: diff.c
+#, c-format
+msgid ", %d insertion(+)"
+msgid_plural ", %d insertions(+)"
+msgstr[0] ", %d 添加(+)"
+msgstr[1] ", %d 添加(+)"
+
+#: diff.c
+#, c-format
+msgid ", %d deletion(-)"
+msgid_plural ", %d deletions(-)"
+msgstr[0] ". %d 删除(-)"
+msgstr[1] ", %d 删除(-)"
+
+#: diff.c
+#, c-format
 msgid "external diff died, stopping at %s"
 msgstr "外部 diff 退出，停止在 %s"
 
